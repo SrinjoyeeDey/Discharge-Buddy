@@ -14,7 +14,7 @@ import {
 import Svg, { Circle, G, Line, Rect, Text as SvgText } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useApp } from "@/context/AppContext";
+import { getLevel, useApp } from "@/context/AppContext";
 import { useSidebar } from "@/context/SidebarContext";
 
 const { width } = Dimensions.get("window");

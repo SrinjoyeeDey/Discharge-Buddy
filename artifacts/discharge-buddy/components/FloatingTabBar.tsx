@@ -46,8 +46,8 @@ interface FabAction {
 
 const FAB_ACTIONS: FabAction[] = [
   { icon: "camera", label: "Scan Rx", route: "/scan", color: "#0891b2" },
-  { icon: "message-circle", label: "AI Help", route: "/chat", color: "#8b5cf6" },
-  { icon: "alert-triangle", label: "Emergency", route: "/emergency", color: "#ef4444" },
+  { icon: "book-open", label: "Journal", route: "/journal", color: "#8b5cf6" },
+  { icon: "heart", label: "Emergency", route: "/emergency-card", color: "#ef4444" },
 ];
 
 interface FloatingTabBarProps {

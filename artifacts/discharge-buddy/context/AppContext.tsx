@@ -1,7 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
 export type UserRole = "patient" | "caregiver" | null;
+export type Language = "en" | "hi" | "es" | "ur";
 
 export interface Medicine {
   id: string;
@@ -14,6 +15,7 @@ export interface Medicine {
   startDate: string;
   endDate?: string;
   color: string;
+  totalPills?: number;
 }
 
 export interface DoseLog {
@@ -64,6 +66,82 @@ export interface AppUser {
   email: string;
   role: UserRole;
   linkedPatientId?: string;
+  bloodType?: string;
+  allergies?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+}
+
+export interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  xpReward: number;
+  unlockedAt?: string;
+}
+
+export interface JournalEntry {
+  id: string;
+  date: string;
+  mood: number;
+  energy: number;
+  text: string;
+}
+
+export interface DoseHistoryDay {
+  date: string;
+  taken: number;
+  total: number;
+}
+
+export interface DrugInteraction {
+  medIds: string[];
+  severity: "mild" | "moderate" | "high";
+  description: string;
+}
+
+const ALL_ACHIEVEMENTS: Achievement[] = [
+  { id: "first_dose", title: "First Step", description: "Take your first medicine", icon: "💊", xpReward: 50 },
+  { id: "streak_3", title: "On a Roll", description: "3-day adherence streak", icon: "🔥", xpReward: 75 },
+  { id: "streak_7", title: "Week Warrior", description: "7-day streak — impressive!", icon: "⚡", xpReward: 150 },
+  { id: "streak_30", title: "Month Master", description: "30-day streak — legendary!", icon: "🏆", xpReward: 500 },
+  { id: "symptom_logger", title: "Health Tracker", description: "Log your first symptom", icon: "📊", xpReward: 40 },
+  { id: "journal_keeper", title: "Journal Keeper", description: "Write your first journal entry", icon: "📝", xpReward: 40 },
+  { id: "scan_master", title: "Scan Master", description: "Scan a prescription", icon: "📷", xpReward: 60 },
+  { id: "full_day", title: "Perfect Day", description: "Take ALL doses in one day", icon: "⭐", xpReward: 100 },
+  { id: "follow_up", title: "Appointment Pro", description: "Complete a follow-up", icon: "📅", xpReward: 80 },
+  { id: "week_perfect", title: "Superstar", description: "Perfect adherence for 7 days", icon: "🌟", xpReward: 300 },
+];
+
+const DRUG_INTERACTIONS: DrugInteraction[] = [
+  {
+    medIds: ["m1", "m3"],
+    severity: "mild",
+    description: "Metformin + Aspirin may slightly increase hypoglycemia risk. Monitor blood sugar closely.",
+  },
+  {
+    medIds: ["m2", "m4"],
+    severity: "mild",
+    description: "Lisinopril + Atorvastatin: monitor for muscle weakness or pain.",
+  },
+  {
+    medIds: ["m3", "m4"],
+    severity: "mild",
+    description: "Aspirin + Atorvastatin: generally safe but watch for unusual bleeding.",
+  },
+];
+
+const XP_LEVELS = [
+  { level: 1, title: "Recovery Starter", min: 0, max: 150 },
+  { level: 2, title: "Getting Stronger", min: 150, max: 400 },
+  { level: 3, title: "Dedicated Patient", min: 400, max: 800 },
+  { level: 4, title: "Health Champion", min: 800, max: 1500 },
+  { level: 5, title: "Recovery Master", min: 1500, max: 9999 },
+];
+
+export function getLevel(xp: number) {
+  return XP_LEVELS.find((l) => xp >= l.min && xp < l.max) ?? XP_LEVELS[XP_LEVELS.length - 1];
 }
 
 interface AppContextType {
@@ -75,6 +153,20 @@ interface AppContextType {
   symptomLogs: SymptomLog[];
   followUps: FollowUp[];
   isOnboarded: boolean;
+  language: Language;
+  linkedPatients: Patient[];
+  isProcessingPrescription: boolean;
+  // Gamification
+  streak: number;
+  xp: number;
+  achievements: Achievement[];
+  doseHistory: DoseHistoryDay[];
+  lastXPGain: number;
+  // Journal
+  journalEntries: JournalEntry[];
+  // Drug interactions
+  drugInteractions: DrugInteraction[];
+  // Actions
   setRole: (role: UserRole) => void;
   setUser: (user: AppUser) => void;
   addMedicine: (medicine: Medicine) => void;
@@ -84,16 +176,16 @@ interface AppContextType {
   completeFollowUp: (id: string) => void;
   setOnboarded: (val: boolean) => void;
   triggerEmergency: () => void;
-  language: "en" | "hi" | "es" | "ur";
-  setLanguage: (lang: "en" | "hi" | "es" | "ur") => void;
-  linkedPatients: Patient[];
+  setLanguage: (lang: Language) => void;
   addPrescription: (imageUri: string) => Promise<void>;
-  isProcessingPrescription: boolean;
+  addJournalEntry: (entry: JournalEntry) => void;
+  awardXP: (amount: number) => void;
+  unlockAchievement: (id: string) => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
 
-const STORAGE_KEY = "discharge_buddy_data";
+const STORAGE_KEY = "discharge_buddy_data_v2";
 
 const DEMO_MEDICINES: Medicine[] = [
   {
@@ -106,6 +198,7 @@ const DEMO_MEDICINES: Medicine[] = [
     simplifiedInstructions: "Take this pill with breakfast and dinner. It helps control your blood sugar.",
     startDate: new Date().toISOString(),
     color: "#0891b2",
+    totalPills: 60,
   },
   {
     id: "m2",
@@ -117,6 +210,7 @@ const DEMO_MEDICINES: Medicine[] = [
     simplifiedInstructions: "Take this pill every morning. It lowers your blood pressure. Avoid ibuprofen.",
     startDate: new Date().toISOString(),
     color: "#10b981",
+    totalPills: 30,
   },
   {
     id: "m3",
@@ -128,6 +222,7 @@ const DEMO_MEDICINES: Medicine[] = [
     simplifiedInstructions: "Take this small pill at bedtime. It protects your heart.",
     startDate: new Date().toISOString(),
     color: "#f59e0b",
+    totalPills: 30,
   },
   {
     id: "m4",
@@ -139,6 +234,7 @@ const DEMO_MEDICINES: Medicine[] = [
     simplifiedInstructions: "Take this pill before sleep. It reduces cholesterol. Avoid grapefruit.",
     startDate: new Date().toISOString(),
     color: "#8b5cf6",
+    totalPills: 30,
   },
 ];
 
@@ -147,22 +243,37 @@ function generateTodayDoses(medicines: Medicine[]): DoseLog[] {
   const doses: DoseLog[] = [];
   for (const med of medicines) {
     for (const time of med.times) {
-      const [hour, min] = time.split(":").map(Number);
-      const scheduled = new Date();
-      scheduled.setHours(hour, min, 0, 0);
+      const [hour] = time.split(":").map(Number);
       const now = new Date();
-      const status: DoseLog["status"] = scheduled < now && scheduled.getHours() < now.getHours() - 1 ? "missed" : "pending";
+      const status: DoseLog["status"] =
+        hour < now.getHours() - 1 ? (Math.random() > 0.4 ? "taken" : "missed") : "pending";
       doses.push({
         id: `${med.id}_${time}_${today}`,
         medicineId: med.id,
         medicineName: med.name,
         scheduledTime: time,
-        status: status === "missed" && Math.random() > 0.5 ? "taken" : status,
+        status,
+        takenAt: status === "taken" ? new Date().toISOString() : undefined,
         date: today,
       });
     }
   }
   return doses;
+}
+
+function generateDoseHistory(medicines: Medicine[]): DoseHistoryDay[] {
+  const history: DoseHistoryDay[] = [];
+  for (let i = 29; i >= 1; i--) {
+    const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+    const total = medicines.reduce((s, m) => s + m.times.length, 0);
+    const taken = Math.round(total * (0.6 + Math.random() * 0.4));
+    history.push({
+      date: d.toISOString().split("T")[0],
+      taken: Math.min(taken, total),
+      total,
+    });
+  }
+  return history;
 }
 
 const DEMO_FOLLOW_UPS: FollowUp[] = [
@@ -207,8 +318,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [symptomLogs, setSymptomLogs] = useState<SymptomLog[]>([]);
   const [followUps, setFollowUps] = useState<FollowUp[]>(DEMO_FOLLOW_UPS);
   const [isOnboarded, setIsOnboardedState] = useState(false);
-  const [language, setLanguageState] = useState<"en" | "hi" | "es" | "ur">("en");
+  const [language, setLanguageState] = useState<Language>("en");
   const [isProcessingPrescription, setIsProcessingPrescription] = useState(false);
+  const [streak, setStreak] = useState(7);
+  const [xp, setXP] = useState(340);
+  const [achievements, setAchievements] = useState<Achievement[]>([
+    { ...ALL_ACHIEVEMENTS[0], unlockedAt: new Date(Date.now() - 5 * 86400000).toISOString() },
+    { ...ALL_ACHIEVEMENTS[1], unlockedAt: new Date(Date.now() - 2 * 86400000).toISOString() },
+    { ...ALL_ACHIEVEMENTS[4], unlockedAt: new Date(Date.now() - 1 * 86400000).toISOString() },
+  ]);
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+  const [doseHistory, setDoseHistory] = useState<DoseHistoryDay[]>([]);
+  const [lastXPGain, setLastXPGain] = useState(0);
 
   useEffect(() => {
     loadData();
@@ -216,8 +337,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (medicines.length > 0) {
-      const doses = generateTodayDoses(medicines);
-      setTodayDoses(doses);
+      setTodayDoses(generateTodayDoses(medicines));
+      setDoseHistory(generateDoseHistory(medicines));
     }
   }, [medicines]);
 
@@ -233,6 +354,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (data.medicines) setMedicines(data.medicines);
         if (data.symptomLogs) setSymptomLogs(data.symptomLogs);
         if (data.followUps) setFollowUps(data.followUps);
+        if (data.streak) setStreak(data.streak);
+        if (data.xp) setXP(data.xp);
+        if (data.achievements) setAchievements(data.achievements);
+        if (data.journalEntries) setJournalEntries(data.journalEntries);
       }
     } catch {}
   }
@@ -245,25 +370,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }
 
-  const setRole = (r: UserRole) => {
-    setRoleState(r);
-    saveData({ role: r });
-  };
+  const awardXP = useCallback((amount: number) => {
+    setLastXPGain(amount);
+    setXP((prev) => {
+      const next = prev + amount;
+      saveData({ xp: next });
+      return next;
+    });
+    setTimeout(() => setLastXPGain(0), 2000);
+  }, []);
 
-  const setUser = (u: AppUser) => {
-    setUserState(u);
-    saveData({ user: u });
-  };
+  const unlockAchievement = useCallback((id: string) => {
+    setAchievements((prev) => {
+      if (prev.find((a) => a.id === id)?.unlockedAt) return prev;
+      const template = ALL_ACHIEVEMENTS.find((a) => a.id === id);
+      if (!template) return prev;
+      const updated = prev.map((a) =>
+        a.id === id ? { ...a, unlockedAt: new Date().toISOString() } : a
+      );
+      if (!prev.find((a) => a.id === id)) {
+        updated.push({ ...template, unlockedAt: new Date().toISOString() });
+      }
+      saveData({ achievements: updated });
+      return updated;
+    });
+    const template = ALL_ACHIEVEMENTS.find((a) => a.id === id);
+    if (template) awardXP(template.xpReward);
+  }, [awardXP]);
 
-  const setOnboarded = (val: boolean) => {
-    setIsOnboardedState(val);
-    saveData({ isOnboarded: val });
-  };
-
-  const setLanguage = (lang: "en" | "hi" | "es" | "ur") => {
-    setLanguageState(lang);
-    saveData({ language: lang });
-  };
+  const setRole = (r: UserRole) => { setRoleState(r); saveData({ role: r }); };
+  const setUser = (u: AppUser) => { setUserState(u); saveData({ user: u }); };
+  const setOnboarded = (val: boolean) => { setIsOnboardedState(val); saveData({ isOnboarded: val }); };
+  const setLanguage = (lang: Language) => { setLanguageState(lang); saveData({ language: lang }); };
 
   const addMedicine = (medicine: Medicine) => {
     const updated = [...medicines, medicine];
@@ -272,17 +410,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateDoseStatus = (doseId: string, status: DoseLog["status"]) => {
-    setTodayDoses((prev) =>
-      prev.map((d) =>
+    setTodayDoses((prev) => {
+      const updated = prev.map((d) =>
         d.id === doseId ? { ...d, status, takenAt: status === "taken" ? new Date().toISOString() : undefined } : d
-      )
-    );
+      );
+      if (status === "taken") {
+        awardXP(10);
+        unlockAchievement("first_dose");
+        const allTaken = updated.filter((d) => d.date === new Date().toISOString().split("T")[0]).every((d) => d.status === "taken");
+        if (allTaken) {
+          awardXP(40);
+          unlockAchievement("full_day");
+        }
+      }
+      return updated;
+    });
   };
 
   const addSymptomLog = (log: SymptomLog) => {
     const updated = [log, ...symptomLogs];
     setSymptomLogs(updated);
     saveData({ symptomLogs: updated });
+    awardXP(15);
+    unlockAchievement("symptom_logger");
   };
 
   const addFollowUp = (followUp: FollowUp) => {
@@ -295,43 +445,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const updated = followUps.map((f) => (f.id === id ? { ...f, completed: true } : f));
     setFollowUps(updated);
     saveData({ followUps: updated });
+    awardXP(25);
+    unlockAchievement("follow_up");
   };
 
-  const triggerEmergency = () => {
-    console.log("EMERGENCY TRIGGERED - Notifying caregivers");
+  const addJournalEntry = (entry: JournalEntry) => {
+    const updated = [entry, ...journalEntries];
+    setJournalEntries(updated);
+    saveData({ journalEntries: updated });
+    awardXP(20);
+    unlockAchievement("journal_keeper");
   };
+
+  const triggerEmergency = () => console.log("EMERGENCY TRIGGERED");
 
   const addPrescription = async (_imageUri: string) => {
     setIsProcessingPrescription(true);
     await new Promise((r) => setTimeout(r, 2500));
     setIsProcessingPrescription(false);
+    unlockAchievement("scan_master");
+  };
+
+  const checkInteractions = (meds: Medicine[]): DrugInteraction[] => {
+    const ids = meds.map((m) => m.id);
+    return DRUG_INTERACTIONS.filter((i) => i.medIds.every((id) => ids.includes(id)));
   };
 
   return (
     <AppContext.Provider
       value={{
-        user,
-        role,
-        patient: DEMO_PATIENT,
-        medicines,
-        todayDoses,
-        symptomLogs,
-        followUps,
-        isOnboarded,
-        setRole,
-        setUser,
-        addMedicine,
-        updateDoseStatus,
-        addSymptomLog,
-        addFollowUp,
-        completeFollowUp,
-        setOnboarded,
-        triggerEmergency,
-        language,
-        setLanguage,
-        linkedPatients: [DEMO_PATIENT],
-        addPrescription,
-        isProcessingPrescription,
+        user, role, patient: DEMO_PATIENT, medicines, todayDoses, symptomLogs, followUps,
+        isOnboarded, language, linkedPatients: [DEMO_PATIENT], isProcessingPrescription,
+        streak, xp, achievements, doseHistory, lastXPGain, journalEntries,
+        drugInteractions: checkInteractions(medicines),
+        setRole, setUser, addMedicine, updateDoseStatus, addSymptomLog, addFollowUp,
+        completeFollowUp, setOnboarded, triggerEmergency, setLanguage, addPrescription,
+        addJournalEntry, awardXP, unlockAchievement,
       }}
     >
       {children}
@@ -344,3 +493,5 @@ export function useApp() {
   if (!ctx) throw new Error("useApp must be used within AppProvider");
   return ctx;
 }
+
+export { ALL_ACHIEVEMENTS, DRUG_INTERACTIONS, XP_LEVELS };
