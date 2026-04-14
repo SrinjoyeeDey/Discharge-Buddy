@@ -1,0 +1,26 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "HgjXS28Q4tJb_dsm7VNKu"
+uri = "file://artifacts/discharge-buddy/assets/images/icon.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "2eE0bgD6CaeeZ3I-te4kq"
+uri = "file://artifacts/discharge-buddy/assets/images/onboarding1.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "Cga89WMadniwSDKrrXynv"
+uri = "file://artifacts/discharge-buddy/assets/images/onboarding2.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "Hep7C83hDBsxcIwMJ-oIB"
+uri = "file://artifacts/discharge-buddy/assets/images/onboarding3.png"
+type = "image"
+title = "generated_image"
