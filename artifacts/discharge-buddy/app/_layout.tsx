@@ -15,6 +15,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/context/AppContext";
+import { SidebarProvider } from "@/context/SidebarContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -32,6 +33,9 @@ function RootLayoutNav() {
       <Stack.Screen name="scan" options={{ presentation: "modal", headerShown: false }} />
       <Stack.Screen name="chat" options={{ presentation: "modal", headerShown: false }} />
       <Stack.Screen name="emergency" options={{ presentation: "modal", headerShown: false }} />
+      <Stack.Screen name="notifications" options={{ presentation: "modal", headerShown: false }} />
+      <Stack.Screen name="profile" options={{ presentation: "modal", headerShown: false }} />
+      <Stack.Screen name="settings" options={{ presentation: "modal", headerShown: false }} />
     </Stack>
   );
 }
@@ -59,7 +63,9 @@ export default function RootLayout() {
           <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProvider>
               <AppProvider>
-                <RootLayoutNav />
+                <SidebarProvider>
+                  <RootLayoutNav />
+                </SidebarProvider>
               </AppProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>

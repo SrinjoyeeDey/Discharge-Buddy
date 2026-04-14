@@ -11,144 +11,234 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import Svg, { Circle, G, Line, Rect, Text as SvgText } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApp } from "@/context/AppContext";
-import { useColors } from "@/hooks/useColors";
+import { useSidebar } from "@/context/SidebarContext";
 
 const { width } = Dimensions.get("window");
 
 const TEAL = "#0891b2";
 const TEAL_DARK = "#0c4a6e";
-const TEAL_MID = "#0e7490";
 const WHITE = "#ffffff";
 
+// ─── Circular Progress Chart ─────────────────────────────────────────────────
+function CircularProgress({ pct, size = 120 }: { pct: number; size?: number }) {
+  const stroke = 10;
+  const r = (size - stroke * 2) / 2;
+  const cx = size / 2;
+  const cy = size / 2;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference - (pct / 100) * circumference;
+
+  return (
+    <Svg width={size} height={size}>
+      {/* Track */}
+      <Circle
+        cx={cx} cy={cy} r={r}
+        stroke="rgba(255,255,255,0.2)"
+        strokeWidth={stroke}
+        fill="none"
+      />
+      {/* Progress */}
+      <Circle
+        cx={cx} cy={cy} r={r}
+        stroke="#c8f6ff"
+        strokeWidth={stroke}
+        fill="none"
+        strokeDasharray={`${circumference} ${circumference}`}
+        strokeDashoffset={offset}
+        strokeLinecap="round"
+        rotation="-90"
+        origin={`${cx},${cy}`}
+      />
+      {/* Center label */}
+      <SvgText
+        x={cx} y={cy - 8}
+        textAnchor="middle"
+        fill={WHITE}
+        fontSize="22"
+        fontWeight="bold"
+      >
+        {pct}%
+      </SvgText>
+      <SvgText
+        x={cx} y={cy + 12}
+        textAnchor="middle"
+        fill="rgba(255,255,255,0.7)"
+        fontSize="10"
+      >
+        adherence
+      </SvgText>
+    </Svg>
+  );
+}
+
+// ─── Weekly Bar Chart ─────────────────────────────────────────────────────────
+function WeeklyBars({ taken = 0, total = 0 }: { taken: number; total: number }) {
+  const today = new Date();
+  const days = ["M", "T", "W", "T", "F", "S", "S"];
+  const todayIdx = (today.getDay() + 6) % 7; // Mon=0
+  const barW = 22;
+  const barH = 70;
+  const gap = (width - 36 - days.length * barW) / (days.length - 1);
+  const chartW = width - 36;
+
+  const randomVals = [85, 100, 70, 90, 100, taken > 0 ? Math.round((taken / (total || 1)) * 100) : 60, 0];
+
+  return (
+    <Svg width={chartW} height={barH + 28}>
+      {days.map((d, i) => {
+        const pct = i <= todayIdx ? randomVals[i] / 100 : 0;
+        const h = Math.round(pct * barH);
+        const x = i * (barW + gap);
+        const y = barH - h;
+        const isToday = i === todayIdx;
+        return (
+          <G key={i}>
+            {/* Track bar */}
+            <Rect
+              x={x} y={0}
+              width={barW} height={barH}
+              rx={barW / 2} ry={barW / 2}
+              fill="rgba(255,255,255,0.12)"
+            />
+            {/* Fill bar */}
+            {pct > 0 && (
+              <Rect
+                x={x} y={y}
+                width={barW} height={h}
+                rx={barW / 2} ry={barW / 2}
+                fill={isToday ? "#c8f6ff" : "rgba(255,255,255,0.55)"}
+              />
+            )}
+            {/* Day label */}
+            <SvgText
+              x={x + barW / 2} y={barH + 18}
+              textAnchor="middle"
+              fill={isToday ? "#c8f6ff" : "rgba(255,255,255,0.55)"}
+              fontSize="11"
+              fontWeight={isToday ? "bold" : "normal"}
+            >
+              {d}
+            </SvgText>
+          </G>
+        );
+      })}
+    </Svg>
+  );
+}
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function HomeScreen() {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { role, user, todayDoses, medicines, followUps, updateDoseStatus } = useApp();
+  const { role } = useApp();
   const topInset = Platform.OS === "web" ? 67 : insets.top;
 
-  if (role === "caregiver") {
-    return <CaregiverDashboard topInset={topInset} />;
-  }
-
+  if (role === "caregiver") return <CaregiverDashboard topInset={topInset} />;
   return <PatientDashboard topInset={topInset} />;
 }
 
 // ─── Patient Dashboard ────────────────────────────────────────────────────────
 function PatientDashboard({ topInset }: { topInset: number }) {
   const { user, todayDoses, medicines, followUps, updateDoseStatus } = useApp();
+  const { open: openSidebar } = useSidebar();
   const insets = useSafeAreaInsets();
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const taken = todayDoses.filter((d) => d.status === "taken").length;
+  const taken = todayDoses.filter(d => d.status === "taken").length;
   const total = todayDoses.length;
-  const missed = todayDoses.filter((d) => d.status === "missed").length;
-  const pending = todayDoses.filter((d) => d.status === "pending").length;
+  const missed = todayDoses.filter(d => d.status === "missed").length;
+  const pending = todayDoses.filter(d => d.status === "pending").length;
   const adherencePct = total > 0 ? Math.round((taken / total) * 100) : 0;
 
-  const upcomingFollowUp = followUps.find((f) => !f.completed);
+  const upcomingFollowUp = followUps.find(f => !f.completed);
   const [showAll, setShowAll] = useState(false);
 
-  const recentActivity = todayDoses.slice(0, showAll ? undefined : 4).map((dose) => {
-    const med = medicines.find((m) => m.id === dose.medicineId);
-    return { dose, med };
-  });
+  const recentActivity = todayDoses.slice(0, showAll ? undefined : 4).map(dose => ({
+    dose,
+    med: medicines.find(m => m.id === dose.medicineId),
+  }));
 
-  const getRiskColor = () => {
-    if (missed >= 2) return "#ef4444";
-    if (missed === 1) return "#f59e0b";
-    return "#10b981";
-  };
-
-  const getRiskLabel = () => {
-    if (missed >= 2) return "High Risk";
-    if (missed === 1) return "Moderate";
-    return "On Track";
-  };
-
-  const getName = () => {
-    const name = user?.name ?? "Patient";
-    return name.split(" ")[0];
-  };
+  const getRiskColor = () => missed >= 2 ? "#ef4444" : missed === 1 ? "#f59e0b" : "#10b981";
+  const getRiskLabel = () => missed >= 2 ? "High Risk" : missed === 1 ? "Moderate" : "On Track";
+  const firstName = (user?.name ?? "Patient").split(" ")[0];
 
   return (
     <View style={{ flex: 1, backgroundColor: WHITE }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: bottomInset + 90 }}
-        stickyHeaderIndices={[]}
       >
         {/* ── Dark teal header ── */}
         <View style={[styles.headerBg, { paddingTop: topInset + 12 }]}>
           {/* Top row */}
           <View style={styles.headerTop}>
+            <TouchableOpacity onPress={openSidebar} style={styles.iconBtn}>
+              <Feather name="menu" size={22} color={WHITE} />
+            </TouchableOpacity>
             <View style={styles.avatarRow}>
               <View style={styles.avatar}>
-                <Feather name="user" size={20} color={TEAL} />
+                <Feather name="user" size={18} color={TEAL} />
               </View>
               <View>
                 <Text style={styles.helloText}>Hello,</Text>
-                <Text style={styles.nameText}>{getName()}</Text>
+                <Text style={styles.nameText}>{firstName}</Text>
               </View>
             </View>
-            <TouchableOpacity style={styles.bellBtn}>
+            <TouchableOpacity
+              onPress={() => router.push("/notifications")}
+              style={styles.iconBtn}
+            >
               <Feather name="bell" size={20} color={WHITE} />
               <View style={styles.bellDot} />
             </TouchableOpacity>
           </View>
 
-          {/* Adherence stat */}
-          <Text style={styles.statLabel}>Today's Recovery Status</Text>
-          <View style={styles.statRow}>
-            <Text style={styles.statValue}>{adherencePct}%</Text>
-            <View style={[styles.riskPill, { backgroundColor: `${getRiskColor()}25` }]}>
-              <View style={[styles.riskDot, { backgroundColor: getRiskColor() }]} />
-              <Text style={[styles.riskText, { color: getRiskColor() }]}>{getRiskLabel()}</Text>
+          {/* Charts row */}
+          <View style={styles.chartsRow}>
+            {/* Circular */}
+            <CircularProgress pct={adherencePct} size={120} />
+
+            {/* Right stats */}
+            <View style={styles.chartStats}>
+              <Text style={styles.statLabel}>Recovery Status</Text>
+              <View style={[styles.riskPill, { backgroundColor: `${getRiskColor()}25` }]}>
+                <View style={[styles.riskDot, { backgroundColor: getRiskColor() }]} />
+                <Text style={[styles.riskText, { color: getRiskColor() }]}>{getRiskLabel()}</Text>
+              </View>
+              <Text style={styles.statSub}>{taken}/{total} doses today</Text>
+              <Text style={styles.statSub2}>{missed} missed · {pending} pending</Text>
             </View>
           </View>
-          <Text style={styles.statSub}>
-            {taken} of {total} doses taken today
-          </Text>
+
+          {/* Weekly bar chart */}
+          <View style={styles.weeklyChart}>
+            <Text style={styles.weeklyLabel}>This Week</Text>
+            <WeeklyBars taken={taken} total={total} />
+          </View>
 
           {/* Action buttons */}
           <View style={styles.actionBtns}>
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={() => router.push("/(tabs)/medicines")}
-            >
-              <Feather name="check-square" size={16} color={TEAL_DARK} />
+            <TouchableOpacity style={styles.actionBtn} onPress={() => router.push("/(tabs)/medicines")}>
+              <Feather name="check-square" size={15} color={TEAL_DARK} />
               <Text style={styles.actionBtnText}>Track Dose</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={() => router.push("/scan")}
-            >
-              <Feather name="camera" size={16} color={TEAL_DARK} />
+            <TouchableOpacity style={styles.actionBtn} onPress={() => router.push("/scan")}>
+              <Feather name="camera" size={15} color={TEAL_DARK} />
               <Text style={styles.actionBtnText}>Scan Rx</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Medicine filter pills */}
-          <View style={styles.filterRow}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {["All Doses", "Morning", "Afternoon", "Night"].map((label, i) => (
-                <TouchableOpacity
-                  key={i}
-                  style={[styles.filterPill, i === 0 && styles.filterPillActive]}
-                >
-                  <Text style={[styles.filterPillText, i === 0 && styles.filterPillTextActive]}>
-                    {label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-              <TouchableOpacity style={[styles.filterPill, { flexDirection: "row", alignItems: "center", gap: 4 }]}>
-                <Feather name="plus-circle" size={14} color="rgba(255,255,255,0.6)" />
-                <Text style={styles.filterPillText}>More</Text>
+          {/* Filter pills */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
+            {["All Doses", "Morning", "Afternoon", "Night"].map((label, i) => (
+              <TouchableOpacity key={i} style={[styles.filterPill, i === 0 && styles.filterPillActive]}>
+                <Text style={[styles.filterPillText, i === 0 && styles.filterPillTextActive]}>{label}</Text>
               </TouchableOpacity>
-            </ScrollView>
-          </View>
+            ))}
+          </ScrollView>
         </View>
 
         {/* ── White content area ── */}
@@ -157,7 +247,7 @@ function PatientDashboard({ topInset }: { topInset: number }) {
           <View style={styles.quickRow}>
             {[
               { icon: "activity" as const, label: "Symptoms", color: "#f59e0b", route: "/(tabs)/symptoms" },
-              { icon: "calendar" as const, label: "Follow-ups", color: "#8b5cf6", route: "/(tabs)/followups" },
+              { icon: "calendar" as const, label: "Schedule", color: "#8b5cf6", route: "/(tabs)/schedule" },
               { icon: "message-circle" as const, label: "AI Help", color: TEAL, route: "/chat" },
               { icon: "alert-triangle" as const, label: "Emergency", color: "#ef4444", route: "/emergency" },
             ].map((item, i) => (
@@ -177,12 +267,9 @@ function PatientDashboard({ topInset }: { topInset: number }) {
             ))}
           </View>
 
-          {/* Follow-up banner */}
+          {/* Upcoming follow-up */}
           {upcomingFollowUp && (
-            <TouchableOpacity
-              onPress={() => router.push("/(tabs)/followups")}
-              style={styles.followupBanner}
-            >
+            <TouchableOpacity onPress={() => router.push("/(tabs)/followups")} style={styles.followupBanner}>
               <View style={styles.followupLeft}>
                 <View style={[styles.followupIcon, { backgroundColor: `${TEAL}20` }]}>
                   <Feather name="calendar" size={18} color={TEAL} />
@@ -191,12 +278,8 @@ function PatientDashboard({ topInset }: { topInset: number }) {
                   <Text style={styles.followupTitle}>{upcomingFollowUp.title}</Text>
                   <Text style={styles.followupDate}>
                     {new Date(upcomingFollowUp.dateTime).toLocaleDateString("en", {
-                      weekday: "short",
-                      month: "short",
-                      day: "numeric",
-                    })}
-                    {" · "}
-                    {upcomingFollowUp.doctorName}
+                      weekday: "short", month: "short", day: "numeric",
+                    })} · {upcomingFollowUp.doctorName}
                   </Text>
                 </View>
               </View>
@@ -204,7 +287,7 @@ function PatientDashboard({ topInset }: { topInset: number }) {
             </TouchableOpacity>
           )}
 
-          {/* Recent Activity */}
+          {/* Recent doses */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recent Doses</Text>
             <TouchableOpacity onPress={() => setShowAll(!showAll)}>
@@ -218,13 +301,11 @@ function PatientDashboard({ topInset }: { topInset: number }) {
               dose.status === "taken" ? "#10b981"
               : dose.status === "missed" ? "#ef4444"
               : dose.status === "snoozed" ? "#f59e0b"
-              : "#0891b2";
-
+              : TEAL;
             const statusIcon =
               dose.status === "taken" ? "check-circle" as const
               : dose.status === "missed" ? "x-circle" as const
               : "clock" as const;
-
             return (
               <View key={dose.id} style={styles.activityRow}>
                 <View style={[styles.activityIcon, { backgroundColor: `${med.color}15` }]}>
@@ -232,9 +313,7 @@ function PatientDashboard({ topInset }: { topInset: number }) {
                 </View>
                 <View style={styles.activityInfo}>
                   <Text style={styles.activityName}>{dose.medicineName}</Text>
-                  <Text style={styles.activitySub}>
-                    {med.dosage} · Scheduled {dose.scheduledTime}
-                  </Text>
+                  <Text style={styles.activitySub}>{med.dosage} · {dose.scheduledTime}</Text>
                 </View>
                 <View style={styles.activityRight}>
                   <Feather name={statusIcon} size={20} color={statusColor} />
@@ -278,6 +357,7 @@ function PatientDashboard({ topInset }: { topInset: number }) {
 // ─── Caregiver Dashboard ──────────────────────────────────────────────────────
 function CaregiverDashboard({ topInset }: { topInset: number }) {
   const { user, linkedPatients } = useApp();
+  const { open: openSidebar } = useSidebar();
   const insets = useSafeAreaInsets();
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
   const patient = linkedPatients[0];
@@ -287,7 +367,7 @@ function CaregiverDashboard({ topInset }: { topInset: number }) {
     { icon: "check-circle" as const, text: "Took Metformin 500mg", time: "8:05 AM", color: "#10b981" },
     { icon: "activity" as const, text: "Logged: mild headache", time: "10:30 AM", color: "#f59e0b" },
     { icon: "x-circle" as const, text: "Missed Aspirin 81mg", time: "8:00 PM", color: "#ef4444" },
-    { icon: "clock" as const, text: "Atorvastatin pending", time: "9:00 PM", color: "#0891b2" },
+    { icon: "clock" as const, text: "Atorvastatin pending", time: "9:00 PM", color: TEAL },
   ];
 
   return (
@@ -296,9 +376,11 @@ function CaregiverDashboard({ topInset }: { topInset: number }) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: bottomInset + 90 }}
       >
-        {/* Header */}
         <View style={[styles.headerBg, { paddingTop: topInset + 12 }]}>
           <View style={styles.headerTop}>
+            <TouchableOpacity onPress={openSidebar} style={styles.iconBtn}>
+              <Feather name="menu" size={22} color={WHITE} />
+            </TouchableOpacity>
             <View style={styles.avatarRow}>
               <View style={styles.avatar}>
                 <Feather name="users" size={18} color={TEAL} />
@@ -308,62 +390,49 @@ function CaregiverDashboard({ topInset }: { topInset: number }) {
                 <Text style={styles.nameText}>{(user?.name ?? "Caregiver").split(" ")[0]}</Text>
               </View>
             </View>
-            <TouchableOpacity style={styles.bellBtn}>
+            <TouchableOpacity onPress={() => router.push("/notifications")} style={styles.iconBtn}>
               <Feather name="bell" size={20} color={WHITE} />
               <View style={styles.bellDot} />
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.statLabel}>Monitoring Patient</Text>
-          <Text style={styles.statValue}>{patient?.name ?? "No Patient"}</Text>
-          <Text style={styles.statSub}>{patient?.condition ?? ""}</Text>
+          {/* Circular chart */}
+          <View style={styles.chartsRow}>
+            <CircularProgress pct={60} size={120} />
+            <View style={styles.chartStats}>
+              <Text style={styles.statLabel}>Patient Adherence</Text>
+              <Text style={styles.nameText}>{patient?.name ?? "No Patient"}</Text>
+              <Text style={styles.statSub}>{patient?.condition ?? ""}</Text>
+              <Text style={styles.statSub2}>3 taken · 1 missed</Text>
+            </View>
+          </View>
+
+          <View style={styles.weeklyChart}>
+            <Text style={styles.weeklyLabel}>Patient — This Week</Text>
+            <WeeklyBars taken={3} total={5} />
+          </View>
 
           <View style={styles.actionBtns}>
             <TouchableOpacity style={styles.actionBtn}>
-              <Feather name="phone" size={16} color={TEAL_DARK} />
+              <Feather name="phone" size={15} color={TEAL_DARK} />
               <Text style={styles.actionBtnText}>Call Patient</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtn}>
-              <Feather name="alert-triangle" size={16} color="#ef4444" />
+            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: "#fecaca" }]}>
+              <Feather name="alert-triangle" size={15} color="#ef4444" />
               <Text style={[styles.actionBtnText, { color: "#ef4444" }]}>Emergency</Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.filterRow}>
-            <View style={[styles.filterPill, styles.filterPillActive]}>
-              <Text style={styles.filterPillTextActive}>Today</Text>
-            </View>
-            <View style={styles.filterPill}>
-              <Text style={styles.filterPillText}>This Week</Text>
-            </View>
-            <View style={styles.filterPill}>
-              <Text style={styles.filterPillText}>All Time</Text>
-            </View>
-          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
+            {["Today", "This Week", "All Time"].map((label, i) => (
+              <TouchableOpacity key={i} style={[styles.filterPill, i === 0 && styles.filterPillActive]}>
+                <Text style={[styles.filterPillText, i === 0 && styles.filterPillTextActive]}>{label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
 
         <View style={styles.whiteArea}>
-          {/* Adherence overview */}
-          <View style={styles.adherenceCard}>
-            <View style={styles.adherenceRow}>
-              {[
-                { label: "Taken", value: 3, color: "#10b981" },
-                { label: "Missed", value: 1, color: "#ef4444" },
-                { label: "Pending", value: 1, color: TEAL },
-              ].map((s, i) => (
-                <View key={i} style={styles.adherenceStat}>
-                  <Text style={[styles.adherenceValue, { color: s.color }]}>{s.value}</Text>
-                  <Text style={styles.adherenceLabel}>{s.label}</Text>
-                </View>
-              ))}
-            </View>
-            <View style={styles.progressBarBg}>
-              <View style={[styles.progressBarFill, { width: `${(3 / 5) * 100}%` }]} />
-            </View>
-            <Text style={styles.progressLabel}>60% adherence today</Text>
-          </View>
-
-          {/* Quick actions */}
           <View style={styles.quickRow}>
             {[
               { icon: "eye" as const, label: "Monitor", color: TEAL },
@@ -380,7 +449,6 @@ function CaregiverDashboard({ topInset }: { topInset: number }) {
             ))}
           </View>
 
-          {/* Activity */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Patient Activity</Text>
             <Text style={[styles.seeAll, { color: TEAL }]}>See all</Text>
@@ -404,11 +472,9 @@ function CaregiverDashboard({ topInset }: { topInset: number }) {
 }
 
 const styles = StyleSheet.create({
-  // ── Header ──
   headerBg: {
     backgroundColor: TEAL_DARK,
-    paddingHorizontal: 20,
-    paddingBottom: 0,
+    paddingHorizontal: 18,
   },
   headerTop: {
     flexDirection: "row",
@@ -422,9 +488,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   avatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: WHITE,
     alignItems: "center",
     justifyContent: "center",
@@ -436,22 +502,22 @@ const styles = StyleSheet.create({
   },
   nameText: {
     color: WHITE,
-    fontSize: 17,
+    fontSize: 16,
     fontFamily: "Inter_700Bold",
   },
-  bellBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center",
     justifyContent: "center",
   },
   bellDot: {
     position: "absolute",
-    width: 9,
-    height: 9,
-    borderRadius: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: "#fbbf24",
     top: 9,
     right: 9,
@@ -459,23 +525,21 @@ const styles = StyleSheet.create({
     borderColor: TEAL_DARK,
   },
 
-  // Stat
-  statLabel: {
-    color: "rgba(255,255,255,0.65)",
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    marginBottom: 6,
-  },
-  statRow: {
+  // Charts
+  chartsRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    marginBottom: 4,
+    gap: 20,
+    marginBottom: 20,
   },
-  statValue: {
-    color: WHITE,
-    fontSize: 36,
-    fontFamily: "Inter_700Bold",
+  chartStats: {
+    flex: 1,
+    gap: 6,
+  },
+  statLabel: {
+    color: "rgba(255,255,255,0.65)",
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
   },
   riskPill: {
     flexDirection: "row",
@@ -484,28 +548,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 50,
+    alignSelf: "flex-start",
   },
-  riskDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  riskText: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-  },
+  riskDot: { width: 7, height: 7, borderRadius: 4 },
+  riskText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   statSub: {
-    color: "rgba(255,255,255,0.6)",
-    fontSize: 13,
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 12,
     fontFamily: "Inter_400Regular",
-    marginBottom: 20,
+  },
+  statSub2: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
   },
 
-  // Action buttons
+  weeklyChart: {
+    marginBottom: 20,
+    gap: 10,
+  },
+  weeklyLabel: {
+    color: "rgba(255,255,255,0.65)",
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+  },
+
   actionBtns: {
     flexDirection: "row",
     gap: 12,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   actionBtn: {
     flex: 1,
@@ -514,33 +585,26 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
     backgroundColor: "#c8f6ff",
-    paddingVertical: 12,
+    paddingVertical: 11,
     borderRadius: 12,
   },
   actionBtnText: {
     color: TEAL_DARK,
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: "Inter_600SemiBold",
   },
 
-  // Filter pills
-  filterRow: {
-    flexDirection: "row",
-    gap: 8,
-    paddingBottom: 20,
-  },
+  filterScroll: { marginBottom: 20 },
   filterPill: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 50,
     backgroundColor: "rgba(255,255,255,0.12)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.2)",
+    marginRight: 8,
   },
-  filterPillActive: {
-    backgroundColor: "#c8f6ff",
-    borderColor: "transparent",
-  },
+  filterPillActive: { backgroundColor: "#c8f6ff", borderColor: "transparent" },
   filterPillText: {
     color: "rgba(255,255,255,0.75)",
     fontSize: 12,
@@ -552,7 +616,6 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_600SemiBold",
   },
 
-  // ── White section ──
   whiteArea: {
     backgroundColor: WHITE,
     borderTopLeftRadius: 28,
@@ -562,21 +625,16 @@ const styles = StyleSheet.create({
     paddingTop: 24,
   },
 
-  // Quick actions
   quickRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 20,
   },
-  quickItem: {
-    alignItems: "center",
-    gap: 8,
-    flex: 1,
-  },
+  quickItem: { alignItems: "center", gap: 8, flex: 1 },
   quickCircle: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
@@ -588,7 +646,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // Follow-up banner
   followupBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -625,7 +682,6 @@ const styles = StyleSheet.create({
     color: "#64748b",
   },
 
-  // Section headers
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -642,12 +698,11 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_500Medium",
   },
 
-  // Activity rows
   activityRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-    paddingVertical: 12,
+    paddingVertical: 11,
     borderBottomWidth: 1,
     borderBottomColor: "#f1f5f9",
   },
@@ -658,9 +713,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  activityInfo: {
-    flex: 1,
-  },
+  activityInfo: { flex: 1 },
   activityName: {
     fontSize: 14,
     fontFamily: "Inter_600SemiBold",
@@ -672,21 +725,10 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     color: "#64748b",
   },
-  activityRight: {
-    alignItems: "flex-end",
-    gap: 4,
-  },
-  takeBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 8,
-  },
-  takeBtnText: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-  },
+  activityRight: { alignItems: "flex-end", gap: 4 },
+  takeBtn: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8 },
+  takeBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
 
-  // Stats grid
   statsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -708,49 +750,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Inter_400Regular",
     color: "#64748b",
-  },
-
-  // Caregiver adherence card
-  adherenceCard: {
-    backgroundColor: "#f0f9ff",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "#bae6fd",
-  },
-  adherenceRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    marginBottom: 14,
-  },
-  adherenceStat: { alignItems: "center" },
-  adherenceValue: {
-    fontSize: 24,
-    fontFamily: "Inter_700Bold",
-  },
-  adherenceLabel: {
-    fontSize: 11,
-    fontFamily: "Inter_400Regular",
-    color: "#64748b",
-    marginTop: 2,
-  },
-  progressBarBg: {
-    height: 8,
-    backgroundColor: "#e0f2fe",
-    borderRadius: 4,
-    overflow: "hidden",
-    marginBottom: 6,
-  },
-  progressBarFill: {
-    height: 8,
-    backgroundColor: TEAL,
-    borderRadius: 4,
-  },
-  progressLabel: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    color: "#64748b",
-    textAlign: "right",
   },
 });
