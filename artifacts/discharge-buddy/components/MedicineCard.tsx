@@ -22,12 +22,12 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; icon: FeatherNa
   pending: { color: "#0891b2", bg: "#e0f2fe", icon: "circle",       label: "Due" },
 };
 
-function PillIcon({ color }: { color: string }) {
+function MedIcon({ medicine }: { medicine: Medicine }) {
   return (
-    <View style={[styles.pillIconWrap, { backgroundColor: `${color}18` }]}>
-      <View style={[styles.pillCapsule, { backgroundColor: color }]}>
-        <View style={styles.pillCapsuleHalf} />
-      </View>
+    <View style={[styles.pillIconWrap, { backgroundColor: `${medicine.color}18` }]}>
+      <Text style={[styles.medInitial, { color: medicine.color }]}>
+        {medicine.name.charAt(0).toUpperCase()}
+      </Text>
     </View>
   );
 }
@@ -65,8 +65,8 @@ export function MedicineCard({ medicine, dose, onTake, onSnooze, compact }: Prop
 
       {/* Content row */}
       <View style={styles.row}>
-        {/* Pill icon */}
-        <PillIcon color={medicine.color} />
+        {/* Medicine icon */}
+        <MedIcon medicine={medicine} />
 
         {/* Info */}
         <View style={styles.info}>
@@ -157,26 +157,18 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
-  // Pill icon
+  // Medicine icon
   pillIconWrap: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
+    width: 48,
+    height: 48,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
   },
-  pillCapsule: {
-    width: 22,
-    height: 12,
-    borderRadius: 6,
-    overflow: "hidden",
-    transform: [{ rotate: "-45deg" }],
-  },
-  pillCapsuleHalf: {
-    width: "50%",
-    height: "100%",
-    backgroundColor: "rgba(255,255,255,0.45)",
+  medInitial: {
+    fontSize: 22,
+    fontFamily: "Inter_700Bold",
   },
 
   // Info
