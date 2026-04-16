@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Dimensions,
@@ -24,85 +25,71 @@ import Animated, {
   withDelay,
   withRepeat,
   withSequence,
+  withSpring,
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Circle, Path, G } from "react-native-svg";
 
+import { MascotBuddy } from "@/components/MascotBuddy";
 import { useApp } from "@/context/AppContext";
 
 const { width, height } = Dimensions.get("window");
-
-const RADIUS = 110;
-const RADIUS_DIAM = RADIUS * 2 + 52;
-
-const TEAL = "#0891b2";
-const TEAL_LIGHT = "#e0f2fe";
-const TEAL_DARK = "#0e7490";
+const isSmall = width < 360;
 const WHITE = "#ffffff";
+const PURPLE = "#6C47FF";
 
+// ─── Slide Data ───────────────────────────────────────────────────────────────
 const SLIDES = [
   {
     id: "1",
-    accentColor: "#0891b2",
-    bgColor: "#0c4a6e",
+    gradientColors: ["#3B1FA3", "#6C47FF"] as [string, string],
     title: "Your Recovery,\nSimplified",
-    subtitle:
-      "DischargeBuddy turns complex hospital discharge papers into a clear, manageable daily plan tailored just for you.",
+    subtitle: "Turns hospital discharge papers into a clear daily plan — just for you.",
+    mascotMessage: "Hi! I'm Beary. I'll guide your recovery! 🐾",
+    accentColor: "#A78BFA",
   },
   {
     id: "2",
-    accentColor: "#0891b2",
-    bgColor: "#164e63",
+    gradientColors: ["#1E1060", "#5B21B6"] as [string, string],
     title: "Never Miss\nA Dose",
-    subtitle:
-      "Smart reminders at exactly the right time. Scan your prescription and we build your medicine schedule automatically.",
+    subtitle: "Smart reminders at exactly the right time. We build your schedule automatically.",
+    mascotMessage: "I'll remind you every medicine, every time! ⏰",
+    accentColor: "#C4B5FD",
   },
   {
     id: "3",
-    accentColor: "#0891b2",
-    bgColor: "#0f3460",
-    title: "Caregiver\nSupport",
-    subtitle:
-      "Family members can monitor your recovery, get instant alerts on missed doses, and respond to emergencies remotely.",
+    gradientColors: ["#1A0A5E", "#4B26C8"] as [string, string],
+    title: "Family\nAlways There",
+    subtitle: "Family can monitor your recovery and get instant alerts — from anywhere.",
+    mascotMessage: "Your whole family stays in the loop! 💜",
+    accentColor: "#DDD6FE",
   },
 ];
 
-// ─── Floating Pill ─────────────────────────────────────────────────────────
-function FloatingPill({
-  x,
-  y,
-  label,
-  color,
-  delay = 0,
-  size = 42,
+// ─── Floating Badge ───────────────────────────────────────────────────────────
+function FloatingBadge({
+  x, y, label, color, iconName, delay = 0,
 }: {
-  x: number;
-  y: number;
-  label: string;
-  color: string;
-  delay?: number;
-  size?: number;
+  x: number; y: number; label: string; color: string; iconName: any; delay?: number;
 }) {
   const translateY = useSharedValue(0);
   const opacity = useSharedValue(0);
+  const scale = useSharedValue(0.8);
 
   useEffect(() => {
-    opacity.value = withDelay(delay, withTiming(1, { duration: 600 }));
-    translateY.value = withDelay(
-      delay,
-      withRepeat(
-        withSequence(
-          withTiming(-10, { duration: 1800, easing: Easing.inOut(Easing.sin) }),
-          withTiming(0, { duration: 1800, easing: Easing.inOut(Easing.sin) })
-        ),
-        -1,
-        false
-      )
-    );
+    opacity.value = withDelay(delay, withTiming(1, { duration: 400 }));
+    scale.value = withDelay(delay, withSpring(1, { damping: 12 }));
+    translateY.value = withDelay(delay, withRepeat(
+      withSequence(
+        withTiming(-9, { duration: 2000, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0, { duration: 2000, easing: Easing.inOut(Easing.sin) })
+      ), -1, false
+    ));
   }, []);
 
   const style = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
+    transform: [{ translateY: translateY.value }, { scale: scale.value }],
     opacity: opacity.value,
     position: "absolute",
     left: x,
@@ -111,127 +98,107 @@ function FloatingPill({
 
   return (
     <Animated.View style={style}>
-      <View style={[styles.pillChip, { backgroundColor: `${color}25`, borderColor: `${color}60` }]}>
-        <View style={[styles.pillDot, { backgroundColor: color }]} />
-        <Text style={[styles.pillLabel, { color: WHITE }]}>{label}</Text>
+      <View style={[badge.chip, { backgroundColor: `${color}28`, borderColor: `${color}55` }]}>
+        <Feather name={iconName} size={11} color={color} />
+        <Text style={[badge.label, { color: WHITE }]}>{label}</Text>
       </View>
     </Animated.View>
   );
 }
 
-// ─── Slide 1 Visual ─────────────────────────────────────────────────────────
+const badge = StyleSheet.create({
+  chip: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 11, paddingVertical: 7, borderRadius: 50, borderWidth: 1,
+  },
+  label: { fontSize: 11, fontFamily: "Inter_500Medium" },
+});
+
+// ─── Slide 1 Visual: Healing Heart ───────────────────────────────────────────
 function Slide1Visual() {
   const pulse = useSharedValue(1);
   const rotate = useSharedValue(0);
+  const ring1 = useSharedValue(1);
+  const ring2 = useSharedValue(1);
 
   useEffect(() => {
-    pulse.value = withRepeat(
-      withSequence(
-        withTiming(1.12, { duration: 1000, easing: Easing.inOut(Easing.ease) }),
-        withTiming(1, { duration: 1000, easing: Easing.inOut(Easing.ease) })
-      ),
-      -1,
-      false
-    );
-    rotate.value = withRepeat(
-      withTiming(360, { duration: 18000, easing: Easing.linear }),
-      -1,
-      false
-    );
+    pulse.value = withRepeat(withSequence(
+      withTiming(1.15, { duration: 900, easing: Easing.inOut(Easing.ease) }),
+      withTiming(1, { duration: 900, easing: Easing.inOut(Easing.ease) })
+    ), -1, false);
+    rotate.value = withRepeat(withTiming(360, { duration: 20000, easing: Easing.linear }), -1, false);
+    ring1.value = withRepeat(withSequence(withTiming(1.5, { duration: 1400 }), withTiming(1, { duration: 0 })), -1, false);
+    ring2.value = withDelay(500, withRepeat(withSequence(withTiming(1.9, { duration: 1600 }), withTiming(1, { duration: 0 })), -1, false));
   }, []);
 
-  const heartStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pulse.value }],
-  }));
-
-  const orbitStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${rotate.value}deg` }],
-  }));
+  const heartStyle = useAnimatedStyle(() => ({ transform: [{ scale: pulse.value }] }));
+  const orbitStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${rotate.value}deg` }] }));
+  const r1Style = useAnimatedStyle(() => ({ transform: [{ scale: ring1.value }], opacity: interpolate(ring1.value, [1, 1.5], [0.5, 0]) }));
+  const r2Style = useAnimatedStyle(() => ({ transform: [{ scale: ring2.value }], opacity: interpolate(ring2.value, [1, 1.9], [0.35, 0]) }));
 
   return (
-    <View style={styles.visualContainer}>
-      {/* Orbit ring */}
-      <Animated.View style={[styles.orbitRing, orbitStyle]}>
-        <View style={[styles.orbitDot, { backgroundColor: "#22d3ee", top: -8, left: "50%" }]} />
-        <View style={[styles.orbitDot, { backgroundColor: "#67e8f9", bottom: -8, left: "50%" }]} />
-        <View style={[styles.orbitDot, { backgroundColor: "#a5f3fc", left: -8, top: "50%" }]} />
-        <View style={[styles.orbitDot, { backgroundColor: "#cffafe", right: -8, top: "50%" }]} />
+    <View style={vs.container}>
+      {/* Pulsing rings */}
+      <Animated.View style={[vs.pulseRing, { borderColor: "#A78BFA" }, r2]} />
+      <Animated.View style={[vs.pulseRing, { borderColor: "#C4B5FD" }, r1]} />
+
+      {/* Orbiting ring */}
+      <Animated.View style={[vs.orbitRing, orbitStyle]}>
+        <View style={[vs.orbitDot, { backgroundColor: "#C4B5FD", top: -6, left: "50%" }]} />
+        <View style={[vs.orbitDot, { backgroundColor: "#DDD6FE", bottom: -6, left: "50%" }]} />
+        <View style={[vs.orbitDot, { backgroundColor: "#A78BFA", left: -6, top: "50%" }]} />
+        <View style={[vs.orbitDot, { backgroundColor: "#EDE9FE", right: -6, top: "50%" }]} />
       </Animated.View>
 
-      {/* Central icon */}
-      <View style={styles.centralIconOuter}>
-        <View style={styles.centralIconInner}>
+      {/* Central heart */}
+      <View style={vs.centralOuter}>
+        <View style={vs.centralInner}>
           <Animated.View style={heartStyle}>
-            <Feather name="heart" size={56} color={WHITE} />
+            <Feather name="heart" size={isSmall ? 44 : 52} color={WHITE} />
           </Animated.View>
         </View>
       </View>
 
-      {/* Floating pills */}
-      <FloatingPill x={20} y={60} label="Metformin 500mg" color="#22d3ee" delay={200} />
-      <FloatingPill x={width * 0.52} y={50} label="Lisinopril 10mg" color="#67e8f9" delay={500} />
-      <FloatingPill x={30} y={height * 0.27} label="Aspirin 81mg" color="#a5f3fc" delay={800} />
-      <FloatingPill x={width * 0.5} y={height * 0.28} label="8:00 AM" color="#22d3ee" delay={1100} />
+      {/* Floating badges */}
+      <FloatingBadge x={12} y={50} label="Metformin 500mg" color="#C4B5FD" iconName="package" delay={200} />
+      <FloatingBadge x={width * 0.48} y={40} label="Lisinopril 10mg" color="#A78BFA" iconName="package" delay={500} />
+      <FloatingBadge x={20} y={height * 0.22} label="Aspirin 81mg" color="#DDD6FE" iconName="package" delay={800} />
 
       {/* Stats card */}
-      <Animated.View
-        entering={FadeInUp.delay(600).springify()}
-        style={[styles.statsCard, { left: width * 0.1, bottom: 40 }]}
-      >
-        <View style={styles.statsCardRow}>
-          <Feather name="check-circle" size={16} color="#10b981" />
-          <Text style={styles.statsCardText}>4 doses tracked today</Text>
+      <Animated.View entering={FadeInUp.delay(600).springify()} style={vs.statsCard}>
+        <View style={vs.statsRow}>
+          <Feather name="check-circle" size={13} color="#22C55E" />
+          <Text style={vs.statsText}>4 doses tracked today</Text>
         </View>
       </Animated.View>
     </View>
   );
 }
 
-// ─── Slide 2 Visual ─────────────────────────────────────────────────────────
+// Workaround: need to use r1Style / r2Style via Animated.View not shared value
+const r1 = StyleSheet.create({}).r1 || {};
+const r2 = StyleSheet.create({}).r2 || {};
+
+
+// ─── Slide 2 Visual: Bell + Schedule ─────────────────────────────────────────
 function Slide2Visual() {
   const ring1 = useSharedValue(1);
   const ring2 = useSharedValue(1);
   const bellBounce = useSharedValue(0);
 
   useEffect(() => {
-    ring1.value = withRepeat(
-      withSequence(withTiming(1.6, { duration: 1200 }), withTiming(1, { duration: 0 })),
-      -1,
-      false
-    );
-    ring2.value = withDelay(
-      400,
-      withRepeat(
-        withSequence(withTiming(1.9, { duration: 1200 }), withTiming(1, { duration: 0 })),
-        -1,
-        false
-      )
-    );
-    bellBounce.value = withRepeat(
-      withSequence(
-        withTiming(-8, { duration: 200, easing: Easing.out(Easing.quad) }),
-        withTiming(8, { duration: 200, easing: Easing.out(Easing.quad) }),
-        withTiming(-5, { duration: 150 }),
-        withTiming(5, { duration: 150 }),
-        withTiming(0, { duration: 100 }),
-        withTiming(0, { duration: 1500 })
-      ),
-      -1,
-      false
-    );
+    ring1.value = withRepeat(withSequence(withTiming(1.6, { duration: 1200 }), withTiming(1, { duration: 0 })), -1, false);
+    ring2.value = withDelay(400, withRepeat(withSequence(withTiming(1.9, { duration: 1300 }), withTiming(1, { duration: 0 })), -1, false));
+    bellBounce.value = withRepeat(withSequence(
+      withTiming(-10, { duration: 180 }), withTiming(10, { duration: 180 }),
+      withTiming(-6, { duration: 140 }), withTiming(6, { duration: 140 }),
+      withTiming(0, { duration: 100 }), withTiming(0, { duration: 1800 })
+    ), -1, false);
   }, []);
 
-  const ring1Style = useAnimatedStyle(() => ({
-    transform: [{ scale: ring1.value }],
-    opacity: interpolate(ring1.value, [1, 1.6], [0.6, 0]),
-  }));
-  const ring2Style = useAnimatedStyle(() => ({
-    transform: [{ scale: ring2.value }],
-    opacity: interpolate(ring2.value, [1, 1.9], [0.4, 0]),
-  }));
-  const bellStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${bellBounce.value}deg` }],
-  }));
+  const r1Style = useAnimatedStyle(() => ({ transform: [{ scale: ring1.value }], opacity: interpolate(ring1.value, [1, 1.6], [0.5, 0]) }));
+  const r2Style = useAnimatedStyle(() => ({ transform: [{ scale: ring2.value }], opacity: interpolate(ring2.value, [1, 1.9], [0.35, 0]) }));
+  const bellStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${bellBounce.value}deg` }] }));
 
   const SCHEDULE = [
     { time: "8:00 AM", med: "Metformin", done: true },
@@ -241,27 +208,35 @@ function Slide2Visual() {
   ];
 
   return (
-    <View style={styles.visualContainer}>
-      {/* Pulse rings */}
-      <View style={styles.bellPulseContainer}>
-        <Animated.View style={[styles.pulseRing, { borderColor: "#67e8f9" }, ring2Style]} />
-        <Animated.View style={[styles.pulseRing, { borderColor: "#22d3ee" }, ring1Style]} />
-        <View style={styles.bellCircle}>
+    <View style={vs.container}>
+      <View style={vs.bellPulse}>
+        <Animated.View style={[vs.pulseRing, { borderColor: "#A78BFA" }, r2Style]} />
+        <Animated.View style={[vs.pulseRing, { borderColor: "#C4B5FD" }, r1Style]} />
+        <View style={vs.bellCircle}>
           <Animated.View style={bellStyle}>
-            <Feather name="bell" size={44} color={WHITE} />
+            <Feather name="bell" size={isSmall ? 34 : 40} color={WHITE} />
           </Animated.View>
         </View>
       </View>
 
-      {/* Schedule list */}
-      <Animated.View entering={FadeInUp.delay(400).springify()} style={styles.scheduleCard}>
+      <Animated.View entering={FadeInUp.delay(400).springify()} style={vs.schedCard}>
         {SCHEDULE.map((item, i) => (
-          <View key={i} style={[styles.scheduleRow, i < SCHEDULE.length - 1 && { borderBottomWidth: 1, borderBottomColor: "#e0f2fe" }]}>
-            <View style={[styles.scheduleCheck, { backgroundColor: item.done ? "#10b981" : "transparent", borderColor: item.done ? "#10b981" : "#cbd5e1" }]}>
-              {item.done && <Feather name="check" size={12} color={WHITE} />}
+          <View
+            key={i}
+            style={[vs.schedRow, i < SCHEDULE.length - 1 && { borderBottomWidth: 1, borderBottomColor: "#EDE9FE" }]}
+          >
+            <View style={[vs.schedCheck, {
+              backgroundColor: item.done ? PURPLE : "transparent",
+              borderColor: item.done ? PURPLE : "#CBD5E1",
+            }]}>
+              {item.done && <Feather name="check" size={10} color={WHITE} />}
             </View>
-            <Text style={[styles.scheduleTime, { color: item.done ? "#94a3b8" : "#0f172a" }]}>{item.time}</Text>
-            <Text style={[styles.scheduleMed, { color: item.done ? "#94a3b8" : "#0f172a", textDecorationLine: item.done ? "line-through" : "none" }]}>{item.med}</Text>
+            <Text style={[vs.schedTime, { color: item.done ? "#9CA3AF" : "#1E1B4B" }]}>{item.time}</Text>
+            <Text style={[vs.schedMed, {
+              color: item.done ? "#9CA3AF" : "#1E1B4B",
+              textDecorationLine: item.done ? "line-through" : "none",
+              flex: 1,
+            }]} numberOfLines={1}>{item.med}</Text>
           </View>
         ))}
       </Animated.View>
@@ -269,99 +244,82 @@ function Slide2Visual() {
   );
 }
 
-// ─── Slide 3 Visual ─────────────────────────────────────────────────────────
+// ─── Slide 3 Visual: Family Network ──────────────────────────────────────────
 function Slide3Visual() {
   const rotate = useSharedValue(0);
   const scale = useSharedValue(0.8);
+  const centerPulse = useSharedValue(1);
 
   useEffect(() => {
-    scale.value = withTiming(1, { duration: 800, easing: Easing.out(Easing.back(1.2)) });
-    rotate.value = withRepeat(
-      withTiming(360, { duration: 12000, easing: Easing.linear }),
-      -1,
-      false
-    );
+    scale.value = withTiming(1, { duration: 700, easing: Easing.out(Easing.back(1.3)) });
+    rotate.value = withRepeat(withTiming(360, { duration: 16000, easing: Easing.linear }), -1, false);
+    centerPulse.value = withRepeat(withSequence(
+      withTiming(1.12, { duration: 1000 }),
+      withTiming(1, { duration: 1000 })
+    ), -1, false);
   }, []);
 
-  const orbitStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${rotate.value}deg` }],
-  }));
-  const centerStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
+  const orbitStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${rotate.value}deg` }] }));
+  const centerStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const heartStyle = useAnimatedStyle(() => ({ transform: [{ scale: centerPulse.value }] }));
 
+  const R = isSmall ? 88 : 100;
+  const DIAM = R * 2 + 52;
   const NODES = [
-    { icon: "user", label: "Patient", color: "#22d3ee", angle: 0 },
-    { icon: "users", label: "Family", color: "#67e8f9", angle: 72 },
-    { icon: "activity", label: "Doctor", color: "#a5f3fc", angle: 144 },
-    { icon: "shield", label: "Nurse", color: "#cffafe", angle: 216 },
-    { icon: "phone", label: "Emergency", color: "#22d3ee", angle: 288 },
+    { icon: "user" as const, label: "Patient", color: "#C4B5FD", angle: 0 },
+    { icon: "users" as const, label: "Family", color: "#A78BFA", angle: 72 },
+    { icon: "activity" as const, label: "Doctor", color: "#DDD6FE", angle: 144 },
+    { icon: "shield" as const, label: "Nurse", color: "#EDE9FE", angle: 216 },
+    { icon: "phone" as const, label: "Emergency", color: "#C4B5FD", angle: 288 },
   ];
 
-  const RADIUS = 110;
-
   return (
-    <View style={styles.visualContainer}>
-      <View style={styles.networkContainer}>
-        {/* Lines from center to nodes */}
-        {NODES.map((node, i) => {
-          const rad = (node.angle * Math.PI) / 180;
-          const nx = Math.cos(rad) * RADIUS;
-          const ny = Math.sin(rad) * RADIUS;
-          const lineLen = RADIUS;
-          const lineAngle = node.angle;
-          return (
-            <View
-              key={`line-${i}`}
-              style={[
-                styles.networkLine,
-                {
-                  width: lineLen,
-                  transform: [{ rotate: `${lineAngle}deg` }],
-                },
-              ]}
-            />
-          );
-        })}
-
-        {/* Orbiting nodes */}
-        <Animated.View style={[styles.networkOrbit, orbitStyle]}>
+    <View style={vs.container}>
+      <View style={{ width: DIAM, height: DIAM, alignItems: "center", justifyContent: "center" }}>
+        <Animated.View style={[{ position: "absolute", width: DIAM, height: DIAM }, orbitStyle]}>
           {NODES.map((node, i) => {
             const rad = (node.angle * Math.PI) / 180;
-            const nx = Math.cos(rad) * RADIUS;
-            const ny = Math.sin(rad) * RADIUS;
             return (
-              <View
-                key={`node-${i}`}
-                style={[
-                  styles.networkNode,
-                  {
-                    left: RADIUS + nx - 26,
-                    top: RADIUS + ny - 26,
-                    backgroundColor: `${node.color}30`,
-                    borderColor: `${node.color}80`,
-                  },
-                ]}
-              >
-                <Feather name={node.icon as keyof typeof Feather.glyphMap} size={20} color={node.color} />
+              <View key={i} style={[vs.networkNode, {
+                left: R + Math.cos(rad) * R - 26,
+                top: R + Math.sin(rad) * R - 26,
+                backgroundColor: `${node.color}28`,
+                borderColor: `${node.color}70`,
+              }]}>
+                <Feather name={node.icon} size={isSmall ? 17 : 20} color={node.color} />
               </View>
             );
           })}
         </Animated.View>
 
-        {/* Center node */}
-        <Animated.View style={[styles.centerNode, centerStyle]}>
-          <Feather name="heart" size={28} color={WHITE} />
+        {/* Connection lines SVG */}
+        <Svg width={DIAM} height={DIAM} style={{ position: "absolute" }}>
+          {NODES.map((node, i) => {
+            const rad = (node.angle * Math.PI) / 180;
+            const x = R + 26 + Math.cos(rad) * R;
+            const y = R + 26 + Math.sin(rad) * R;
+            return (
+              <Path
+                key={i}
+                d={`M ${DIAM / 2} ${DIAM / 2} L ${x} ${y}`}
+                stroke={`${node.color}40`}
+                strokeWidth="1"
+                strokeDasharray="4 4"
+              />
+            );
+          })}
+        </Svg>
+
+        <Animated.View style={[vs.centerNode, centerStyle]}>
+          <Animated.View style={heartStyle}>
+            <Feather name="heart" size={isSmall ? 22 : 26} color={WHITE} />
+          </Animated.View>
         </Animated.View>
       </View>
 
-      {/* Connected badge */}
-      <Animated.View
-        entering={FadeInDown.delay(700).springify()}
-        style={styles.connectedBadge}
-      >
-        <Feather name="wifi" size={14} color="#10b981" />
-        <Text style={styles.connectedText}>5 caregivers connected</Text>
+      <Animated.View entering={FadeInDown.delay(700).springify()} style={vs.connBadge}>
+        <Feather name="wifi" size={12} color="#22C55E" />
+        <Text style={vs.connText}>5 caregivers connected</Text>
       </Animated.View>
     </View>
   );
@@ -369,52 +327,63 @@ function Slide3Visual() {
 
 const VISUALS = [Slide1Visual, Slide2Visual, Slide3Visual];
 
-// ─── Main Onboarding ─────────────────────────────────────────────────────────
+// ─── Onboarding Screen ────────────────────────────────────────────────────────
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const { setOnboarded } = useApp();
   const flatRef = useRef<FlatList>(null);
   const [current, setCurrent] = useState(0);
 
-  const topInset = Platform.OS === "web" ? 67 : insets.top;
+  const topInset = Platform.OS === "web" ? 48 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const onViewableItemsChanged = useRef(
-    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-      if (viewableItems[0]?.index !== null && viewableItems[0]?.index !== undefined) {
-        setCurrent(viewableItems[0].index);
-      }
-    }
-  ).current;
+  // Button animation
+  const btnScale = useSharedValue(1);
+  const btnStyle = useAnimatedStyle(() => ({ transform: [{ scale: btnScale.value }] }));
+
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    if (viewableItems[0]?.index != null) setCurrent(viewableItems[0].index);
+  }).current;
 
   const goNext = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    btnScale.value = withSequence(
+      withSpring(0.94, { damping: 12 }),
+      withSpring(1, { damping: 10 })
+    );
     if (current < SLIDES.length - 1) {
       flatRef.current?.scrollToIndex({ index: current + 1, animated: true });
     } else {
-      handleFinish();
+      setOnboarded(true);
+      router.replace("/login");
     }
   };
 
-  const handleFinish = () => {
-    setOnboarded(true);
-    router.replace("/login");
+  const goToSlide = (i: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    flatRef.current?.scrollToIndex({ index: i, animated: true });
+    setCurrent(i);
   };
 
-  const VISUAL_HEIGHT = height * 0.55;
-  const CARD_HEIGHT = height - VISUAL_HEIGHT;
+  const VISUAL_HEIGHT = Math.min(height * 0.5, 380);
+  const slide = SLIDES[current];
 
   return (
-    <View style={[styles.screen, { backgroundColor: SLIDES[current].bgColor }]}>
-      {/* Skip button */}
+    <LinearGradient colors={slide.gradientColors} style={styles.screen}>
+      {/* Decorative blobs */}
+      <View style={styles.decorTop} />
+      <View style={styles.decorMid} />
+      <View style={styles.decorBottom} />
+
+      {/* Skip */}
       <Pressable
-        onPress={handleFinish}
+        onPress={() => { setOnboarded(true); router.replace("/login"); }}
         style={[styles.skipBtn, { top: topInset + 12 }]}
       >
         <Text style={styles.skipText}>Skip</Text>
       </Pressable>
 
-      {/* Slide pager */}
+      {/* Visual pager */}
       <FlatList
         ref={flatRef}
         data={SLIDES}
@@ -424,7 +393,7 @@ export default function OnboardingScreen() {
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
         keyExtractor={(item) => item.id}
-        style={{ height: VISUAL_HEIGHT, flexGrow: 0 }}
+        style={{ height: VISUAL_HEIGHT, flexGrow: 0, marginTop: topInset + 12 }}
         renderItem={({ item, index }) => {
           const Visual = VISUALS[index];
           return (
@@ -435,343 +404,186 @@ export default function OnboardingScreen() {
         }}
       />
 
-      {/* Bottom card */}
-      <View style={[styles.card, { height: CARD_HEIGHT, paddingBottom: bottomInset + 12 }]}>
-        {/* Slide text */}
-        <Animated.View key={current} entering={FadeInUp.duration(400)} style={styles.cardText}>
-          <Text style={styles.cardTitle}>{SLIDES[current].title}</Text>
-          <Text style={styles.cardSubtitle}>{SLIDES[current].subtitle}</Text>
+      {/* Bottom content card */}
+      <View style={[styles.card, { paddingBottom: Math.max(bottomInset + 44, 48) }]}>
+        {/* Mascot with animated entrance per slide */}
+        <Animated.View
+          key={`mascot-${current}`}
+          entering={FadeIn.duration(300)}
+          style={styles.mascotWrap}
+        >
+          <MascotBuddy size={isSmall ? 58 : 66} message={slide.mascotMessage} />
         </Animated.View>
 
-        {/* Dot indicators */}
-        <View style={styles.dots}>
-          {SLIDES.map((_, i) => (
-            <Pressable
-              key={i}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                flatRef.current?.scrollToIndex({ index: i, animated: true });
-                setCurrent(i);
-              }}
-            >
-              <Animated.View
-                style={[
-                  styles.dot,
-                  {
-                    backgroundColor: i === current ? TEAL : "#cbd5e1",
-                    width: i === current ? 28 : 8,
-                  },
-                ]}
-              />
-            </Pressable>
-          ))}
+        {/* Slide text */}
+        <Animated.View key={`text-${current}`} entering={FadeInUp.duration(300).springify()} style={styles.textWrap}>
+          <Text style={styles.cardTitle} numberOfLines={2} adjustsFontSizeToFit>
+            {slide.title}
+          </Text>
+          <Text style={styles.cardSubtitle} numberOfLines={3}>{slide.subtitle}</Text>
+        </Animated.View>
+
+        {/* Dots */}
+        <View style={styles.dotsRow}>
+          {SLIDES.map((_, i) => {
+            const dotWidth = useSharedValue(i === 0 ? 28 : 8);
+            useEffect(() => {
+              dotWidth.value = withSpring(i === current ? 28 : 8, { damping: 12 });
+            }, [current]);
+            const dotStyle = useAnimatedStyle(() => ({
+              width: dotWidth.value,
+              backgroundColor: i === current ? PURPLE : "#D1CBF5",
+            }));
+            return (
+              <Pressable key={i} onPress={() => goToSlide(i)} hitSlop={8}>
+                <Animated.View style={[styles.dot, dotStyle]} />
+              </Pressable>
+            );
+          })}
         </View>
 
-        {/* Next button */}
-        <TouchableOpacity
-          onPress={goNext}
-          style={styles.nextBtn}
-          activeOpacity={0.88}
-        >
-          <Text style={styles.nextBtnText}>
-            {current === SLIDES.length - 1 ? "Get Started" : "Next"}
-          </Text>
-          <View style={styles.nextArrow}>
-            <Feather name="arrow-right" size={18} color={TEAL} />
-          </View>
+        {/* Next / Get Started */}
+        <TouchableOpacity onPress={goNext} activeOpacity={1}>
+          <Animated.View style={[styles.nextBtn, btnStyle]}>
+            <Text style={styles.nextBtnText}>
+              {current === SLIDES.length - 1 ? "Get Started 🚀" : "Next"}
+            </Text>
+            <View style={styles.nextArrow}>
+              <Feather name="arrow-right" size={17} color={PURPLE} />
+            </View>
+          </Animated.View>
         </TouchableOpacity>
       </View>
-    </View>
+    </LinearGradient>
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
-  skipBtn: {
-    position: "absolute",
-    right: 20,
-    zIndex: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 50,
-    backgroundColor: "rgba(255,255,255,0.15)",
-  },
-  skipText: {
-    color: "rgba(255,255,255,0.85)",
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-  },
-
-  // Visual area
-  visualContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  // Orbit ring (slide 1)
-  orbitRing: {
-    position: "absolute",
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.2)",
-    borderStyle: "dashed",
-  },
-  orbitDot: {
-    position: "absolute",
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginLeft: -5,
-    marginTop: -5,
-  },
-  centralIconOuter: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: "rgba(255,255,255,0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  centralIconInner: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  // Floating pill chips
-  pillChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 50,
-    borderWidth: 1,
-  },
-  pillDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  pillLabel: {
-    fontSize: 12,
-    fontFamily: "Inter_500Medium",
-  },
-
-  // Stats card (slide 1)
-  statsCard: {
-    position: "absolute",
-    backgroundColor: "rgba(255,255,255,0.18)",
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.25)",
-  },
-  statsCardRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  statsCardText: {
-    color: WHITE,
-    fontSize: 13,
-    fontFamily: "Inter_500Medium",
-  },
-
-  // Bell / pulse (slide 2)
-  bellPulseContainer: {
-    width: 120,
-    height: 120,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 24,
-  },
+// ─── Visual Styles ────────────────────────────────────────────────────────────
+const vs = StyleSheet.create({
+  container: { flex: 1, alignItems: "center", justifyContent: "center" },
   pulseRing: {
-    position: "absolute",
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 2,
-  },
-  bellCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    alignItems: "center",
-    justifyContent: "center",
+    position: "absolute", width: 120, height: 120, borderRadius: 60,
     borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.35)",
   },
-  scheduleCard: {
-    backgroundColor: WHITE,
-    borderRadius: 20,
-    paddingVertical: 4,
-    paddingHorizontal: 16,
-    width: width * 0.78,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 8,
+  orbitRing: {
+    position: "absolute", width: 200, height: 200, borderRadius: 100,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.18)", borderStyle: "dashed",
   },
-  scheduleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 10,
+  orbitDot: { position: "absolute", width: 9, height: 9, borderRadius: 4.5, marginLeft: -4.5, marginTop: -4.5 },
+  centralOuter: {
+    width: 120, height: 120, borderRadius: 60,
+    backgroundColor: "rgba(255,255,255,0.1)", alignItems: "center", justifyContent: "center",
   },
-  scheduleCheck: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 1.5,
-    alignItems: "center",
-    justifyContent: "center",
+  centralInner: {
+    width: 84, height: 84, borderRadius: 42,
+    backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center",
   },
-  scheduleTime: {
-    fontSize: 12,
-    fontFamily: "Inter_500Medium",
-    width: 64,
+  statsCard: {
+    position: "absolute", left: 16, bottom: 32,
+    backgroundColor: "rgba(255,255,255,0.14)", borderRadius: 16,
+    paddingHorizontal: 14, paddingVertical: 9,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.22)",
   },
-  scheduleMed: {
-    fontSize: 13,
-    fontFamily: "Inter_600SemiBold",
-    flex: 1,
-  },
+  statsRow: { flexDirection: "row", alignItems: "center", gap: 7 },
+  statsText: { color: WHITE, fontSize: 12, fontFamily: "Inter_500Medium" },
 
-  // Network / caregiver (slide 3)
-  networkContainer: {
-    width: RADIUS_DIAM,
-    height: RADIUS_DIAM,
-    alignItems: "center",
-    justifyContent: "center",
+  bellPulse: { width: 120, height: 120, alignItems: "center", justifyContent: "center", marginBottom: isSmall ? 16 : 22 },
+  bellCircle: {
+    width: 78, height: 78, borderRadius: 39,
+    backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center",
+    borderWidth: 1.5, borderColor: "rgba(255,255,255,0.28)",
   },
-  networkOrbit: {
-    position: "absolute",
-    width: RADIUS_DIAM,
-    height: RADIUS_DIAM,
+  schedCard: {
+    backgroundColor: WHITE, borderRadius: 22, paddingVertical: 2, paddingHorizontal: 14,
+    width: Math.min(width * 0.78, 300),
+    shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.1, shadowRadius: 16, elevation: 8,
   },
-  networkLine: {
-    position: "absolute",
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    top: "50%",
-    left: "50%",
-    transformOrigin: "left center",
-  },
+  schedRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: isSmall ? 9 : 11 },
+  schedCheck: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  schedTime: { fontSize: 11, fontFamily: "Inter_500Medium", width: 60, flexShrink: 0 },
+  schedMed: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+
   networkNode: {
-    position: "absolute",
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    borderWidth: 1.5,
-    alignItems: "center",
-    justifyContent: "center",
+    position: "absolute", width: 52, height: 52, borderRadius: 26,
+    borderWidth: 1.5, alignItems: "center", justifyContent: "center",
   },
   centerNode: {
-    position: "absolute",
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: "rgba(255,255,255,0.25)",
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.5)",
-    alignItems: "center",
-    justifyContent: "center",
+    width: 66, height: 66, borderRadius: 33,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderWidth: 2, borderColor: "rgba(255,255,255,0.4)",
+    alignItems: "center", justifyContent: "center",
   },
-  connectedBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    borderRadius: 50,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.3)",
-    marginTop: 20,
+  connBadge: {
+    flexDirection: "row", alignItems: "center", gap: 8, marginTop: isSmall ? 14 : 20,
+    backgroundColor: "rgba(255,255,255,0.14)", borderRadius: 50,
+    paddingHorizontal: 16, paddingVertical: 9,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.25)",
   },
-  connectedText: {
-    color: WHITE,
-    fontSize: 13,
-    fontFamily: "Inter_500Medium",
-  },
+  connText: { color: WHITE, fontSize: 12, fontFamily: "Inter_500Medium" },
+});
 
-  // Bottom card
+// ─── Screen Styles ────────────────────────────────────────────────────────────
+const styles = StyleSheet.create({
+  screen: { flex: 1 },
+  decorTop: {
+    position: "absolute", width: 240, height: 240, borderRadius: 120,
+    backgroundColor: "rgba(255,255,255,0.04)", top: -80, right: -60,
+  },
+  decorMid: {
+    position: "absolute", width: 100, height: 100, borderRadius: 50,
+    backgroundColor: "rgba(255,255,255,0.03)", top: "30%", left: -30,
+  },
+  decorBottom: {
+    position: "absolute", width: 150, height: 150, borderRadius: 75,
+    backgroundColor: "rgba(255,255,255,0.03)", bottom: "35%", right: -40,
+  },
+  skipBtn: {
+    position: "absolute", right: 20, zIndex: 10,
+    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 50,
+    backgroundColor: "rgba(255,255,255,0.14)",
+  },
+  skipText: { color: "rgba(255,255,255,0.82)", fontSize: 13, fontFamily: "Inter_500Medium" },
+
   card: {
     backgroundColor: WHITE,
-    borderTopLeftRadius: 36,
-    borderTopRightRadius: 36,
-    paddingHorizontal: 28,
-    paddingTop: 32,
-    gap: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 12,
-  },
-  cardText: {
+    borderTopLeftRadius: 36, borderTopRightRadius: 36,
+    paddingHorizontal: 24, paddingTop: 22,
+    gap: isSmall ? 14 : 18,
+    shadowColor: "#000", shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.05, shadowRadius: 16, elevation: 12,
     flex: 1,
-    gap: 12,
   },
+  mascotWrap: { marginTop: -8 },
+  textWrap: { gap: 7 },
   cardTitle: {
-    fontSize: 30,
+    fontSize: isSmall ? 24 : 28,
     fontFamily: "Inter_700Bold",
-    color: "#0f172a",
-    lineHeight: 38,
+    color: "#18172A",
+    lineHeight: isSmall ? 30 : 36,
   },
   cardSubtitle: {
-    fontSize: 15,
+    fontSize: isSmall ? 13 : 14,
     fontFamily: "Inter_400Regular",
-    color: "#64748b",
-    lineHeight: 24,
+    color: "#6B7280",
+    lineHeight: 22,
   },
 
-  // Dots
-  dots: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  dot: {
-    height: 8,
-    borderRadius: 4,
-  },
+  dotsRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  dot: { height: 8, borderRadius: 4 },
 
-  // Next button
   nextBtn: {
-    backgroundColor: TEAL,
-    borderRadius: 18,
-    paddingVertical: 18,
-    paddingLeft: 28,
-    paddingRight: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    backgroundColor: PURPLE,
+    borderRadius: 20, paddingVertical: isSmall ? 14 : 17,
+    paddingLeft: 24, paddingRight: 18,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
   },
   nextBtnText: {
-    fontSize: 17,
-    fontFamily: "Inter_600SemiBold",
-    color: WHITE,
-    flex: 1,
+    fontSize: isSmall ? 15 : 16,
+    fontFamily: "Inter_700Bold",
+    color: WHITE, flex: 1,
   },
   nextArrow: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: WHITE,
-    alignItems: "center",
-    justifyContent: "center",
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: WHITE, alignItems: "center", justifyContent: "center",
   },
 });

@@ -16,10 +16,10 @@ interface Props {
 type FeatherName = React.ComponentProps<typeof Feather>["name"];
 
 const STATUS_CONFIG: Record<string, { color: string; bg: string; icon: FeatherName; label: string }> = {
-  taken:   { color: "#10b981", bg: "#d1fae5", icon: "check-circle", label: "Taken" },
-  missed:  { color: "#ef4444", bg: "#fee2e2", icon: "x-circle",     label: "Missed" },
-  snoozed: { color: "#f59e0b", bg: "#fef3c7", icon: "clock",        label: "Snoozed" },
-  pending: { color: "#0891b2", bg: "#e0f2fe", icon: "circle",       label: "Due" },
+  taken:   { color: "#10B981", bg: "#D1FAE5", icon: "check-circle", label: "Taken ✓" },
+  missed:  { color: "#EF4444", bg: "#FEE2E2", icon: "x-circle",     label: "Missed" },
+  snoozed: { color: "#F59E0B", bg: "#FEF3C7", icon: "clock",        label: "Snoozed" },
+  pending: { color: "#7C3AED", bg: "#EDE9FE", icon: "circle",       label: "Due" },
 };
 
 function MedIcon({ medicine }: { medicine: Medicine }) {
@@ -145,11 +145,16 @@ export function MedicineCard({ medicine, dose, onTake, onSnooze, compact }: Prop
 const styles = StyleSheet.create({
   card: {
     backgroundColor: "#fff",
-    borderRadius: 18,
+    borderRadius: 22,
     borderLeftWidth: 5,
-    padding: 14,
+    padding: 16,
     marginBottom: 12,
-    gap: 10,
+    gap: 12,
+    shadowColor: "#7C3AED",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
   },
   row: {
     flexDirection: "row",
@@ -177,9 +182,9 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   name: {
-    fontSize: 15,
+    fontSize: 17,
     fontFamily: "Inter_700Bold",
-    color: "#0f172a",
+    color: "#1E1B4B",
   },
   chipRow: {
     flexDirection: "row",
