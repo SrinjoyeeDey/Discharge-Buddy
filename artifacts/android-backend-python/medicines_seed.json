@@ -1,0 +1,17 @@
+[
+  {"name": "Dolo", "aliases": ["dolo 650", "d0lo", "doloo", "dl0", "dlo"], "dosages": ["650mg"], "instructions": "Take after meals for fever/pain.", "default_frequency": "SOS"},
+  {"name": "Paracetamol", "aliases": ["pcm", "parcetamol", "paracitamol", "paracetmol", "p4racetamol"], "dosages": ["500mg", "650mg"], "instructions": "Take after food.", "default_frequency": "SOS"},
+  {"name": "Pantocid", "aliases": ["pantocid d", "pantoprazole", "pantocid 40", "pant0cid", "pntocid"], "dosages": ["40mg", "20mg"], "instructions": "Take 30 mins before breakfast on an empty stomach.", "default_frequency": "OD"},
+  {"name": "Pan", "aliases": ["pan 40", "pan d", "pn", "p4n"], "dosages": ["40mg"], "instructions": "Take in morning empty stomach.", "default_frequency": "OD"},
+  {"name": "Augmentin", "aliases": ["amoxicillin", "augmentin 625", "augmntin", "augmentn", "augment"], "dosages": ["625mg"], "instructions": "Complete the full antibiotic course.", "default_frequency": "BD"},
+  {"name": "Metformin", "aliases": ["glycomet", "metfornin", "metfrmin", "metfor", "m3tformin"], "dosages": ["500mg", "850mg"], "instructions": "Take immediately after meals.", "default_frequency": "BD"},
+  {"name": "Thyronorm", "aliases": ["levothyroxine", "thyrox", "thyronrm", "thyro", "thyr0norm"], "dosages": ["25mcg", "50mcg", "100mcg"], "instructions": "Take early morning empty stomach.", "default_frequency": "OD"},
+  {"name": "Aspirin", "aliases": ["ecosprin", "asprin", "aspirn", "asp1rin"], "dosages": ["75mg", "150mg"], "instructions": "Take after food to prevent stomach upset.", "default_frequency": "OD"},
+  {"name": "Atorvastin", "aliases": ["atorva", "lipikind", "atorv", "atorvastat", "a7orva"], "dosages": ["10mg", "20mg"], "instructions": "Take ideally at bedtime.", "default_frequency": "OD"},
+  {"name": "Cetirizine", "aliases": ["cetzine", "cetrizine", "cetirzin", "cetiriz", "c3tirizine"], "dosages": ["10mg"], "instructions": "May cause drowsiness. Taken at night.", "default_frequency": "HS"},
+  {"name": "Ondem", "aliases": ["ondansetron", "ondanstron", "ondm", "0ndem"], "dosages": ["4mg", "8mg"], "instructions": "Take 30 mins before food for nausea.", "default_frequency": "SOS"},
+  {"name": "Meftal", "aliases": ["mefenamic acid", "mefnamic", "meftl", "mefta1"], "dosages": ["250mg", "500mg"], "instructions": "Take strictly after meals for cramps.", "default_frequency": "SOS"},
+  {"name": "Zerodol", "aliases": ["aceclofenac", "zerodl", "zer0dol", "zerdol"], "dosages": ["100mg"], "instructions": "Take after food.", "default_frequency": "BD"},
+  {"name": "Combiflam", "aliases": ["ibuprofen", "combflam", "combiflame", "comb1flam"], "dosages": ["1 tab"], "instructions": "Take after food for pain and inflammation.", "default_frequency": "SOS"},
+  {"name": "Ascoril", "aliases": ["salbutamol", "ascoril ls", "ascorl", "asc0ril"], "dosages": ["5ml"], "instructions": "Shake well before use.", "default_frequency": "TDS"}
+]

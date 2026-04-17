@@ -20,29 +20,12 @@ import { useColors } from "@/hooks/useColors";
 
 const MEDICINE_COLORS = ["#0891b2", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4"];
 
-const MOCK_EXTRACTED: Partial<Medicine>[] = [
-  {
-    name: "Amlodipine",
-    dosage: "5mg",
-    frequency: "Once daily",
-    times: ["08:00"],
-    instructions: "Take once daily for blood pressure control. May cause ankle swelling.",
-    simplifiedInstructions: "Take this pill every morning. It controls blood pressure. Tell doctor if legs swell.",
-  },
-  {
-    name: "Omeprazole",
-    dosage: "20mg",
-    frequency: "Once daily",
-    times: ["07:00"],
-    instructions: "Take 30 minutes before breakfast for stomach protection.",
-    simplifiedInstructions: "Take this capsule 30 minutes before breakfast. It protects your stomach.",
-  },
-];
+const API_URL = "http://10.0.2.2:8000";
 
 export default function ScanScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { addMedicine, isProcessingPrescription, addPrescription } = useApp();
+  const { user, addMedicine, isProcessingPrescription, addPrescription } = useApp();
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
@@ -76,10 +59,54 @@ export default function ScanScreen() {
     setProcessing(true);
     setExtracted(null);
     await addPrescription(uri);
-    await new Promise((r) => setTimeout(r, 500));
-    setExtracted(MOCK_EXTRACTED);
-    setProcessing(false);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    
+    try {
+      // 1. Upload to OCR engine
+      const formData = new FormData();
+      const filename = uri.split('/').pop() || "prescription.jpg";
+      formData.append("image", {
+        uri,
+        name: filename,
+        type: "image/jpeg"
+      } as any);
+
+      const ocrRes = await fetch(`${API_URL}/ocr/extract`, {
+        method: "POST",
+        body: formData,
+      });
+      const ocrData = await ocrRes.json();
+      if (!ocrRes.ok) throw new Error(ocrData.detail || "OCR Extraction Failed");
+
+      // 2. Process with fuzzy matching engine
+      // Warning: In offline mode, user?.id might be missing or backend might not have token validation wired up for this endpoint yet
+      const processRes = await fetch(`${API_URL}/prescriptions/process`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer offline" },
+        body: JSON.stringify({
+          patient_id: user?.id || "offline",
+          extracted_text: ocrData.normalized_text
+        })
+      });
+      const processData = await processRes.json();
+      if (!processRes.ok) throw new Error(processData.detail || "Processing Failed");
+
+      // Map backend response to Medicine parts
+      const meds = processData.medicines.map((m: any) => ({
+        name: m.name,
+        dosage: m.dosage,
+        frequency: m.frequency,
+        times: m.times,
+        instructions: m.instructions,
+        simplifiedInstructions: m.simplified_instructions
+      }));
+      setExtracted(meds);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err: any) {
+      console.error(err);
+      alert(`Error scanning prescription: ${err.message}`);
+    } finally {
+      setProcessing(false);
+    }
   };
 
   const handleAddAll = () => {

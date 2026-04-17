@@ -12,10 +12,19 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import * as WebBrowser from "expo-web-browser";
+import * as Google from "expo-auth-session/providers/google";
+
 import { useApp } from "@/context/AppContext";
+
+WebBrowser.maybeCompleteAuthSession();
+
+// Replace with localhost when using tunnel, or 10.0.2.2 for Android emulator
+const API_URL = "http://10.0.2.2:8000";
 
 const PINK = "#e91e8c";
 const PINK_DARK = "#c2185b";
@@ -35,19 +44,48 @@ export default function LoginScreen() {
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
 
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    androidClientId: "995870718114-1g23k4ue91t0mn6edecfpe47q4krut46.apps.googleusercontent.com",
+    clientId: "995870718114-1g23k4ue91t0mn6edecfpe47q4krut46.apps.googleusercontent.com",
+  });
+
+  React.useEffect(() => {
+    if (response?.type === "success") {
+      const { id_token } = response.params;
+      
+      fetch(`${API_URL}/auth/google`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_token, role })
+      })
+        .then(res => res.json())
+        .then(data => {
+            if (data.token) {
+              setRole(data.user.role);
+              setUser({
+                id: data.user.id,
+                name: data.user.name,
+                email: data.user.email,
+                role: data.user.role,
+              });
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              router.replace("/(tabs)");
+            } else {
+              Alert.alert("Login Error", "Failed to verify Google token with backend");
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            Alert.alert("Network Error", "Could not reach the DischargeBuddy servers");
+        });
+    }
+  }, [response]);
+
   const topInset = Platform.OS === "web" ? 0 : insets.top;
   const bottomInset = Platform.OS === "web" ? 24 : insets.bottom;
 
   const handleLogin = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setRole(role);
-    setUser({
-      id: Date.now().toString(),
-      name: email.split("@")[0] || (role === "patient" ? "John Doe" : "Mary Doe"),
-      email: email || `${role}@example.com`,
-      role,
-    });
-    router.replace("/(tabs)");
+    promptAsync();
   };
 
   return (
@@ -161,24 +199,29 @@ export default function LoginScreen() {
           </TouchableOpacity>
 
           {/* Login button */}
-          <TouchableOpacity onPress={handleLogin} activeOpacity={0.85}>
+          <TouchableOpacity onPress={handleLogin} activeOpacity={0.85} disabled={!request}>
             <LinearGradient
               colors={[PINK_DARK, PINK, PINK_LIGHT]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.loginBtn}
             >
-              <Text style={styles.loginBtnText}>LOG IN</Text>
+              <Text style={styles.loginBtnText}>SIGN IN WITH GOOGLE</Text>
             </LinearGradient>
           </TouchableOpacity>
 
-          {/* Guest login */}
+          {/* Offline local proxy */}
           <TouchableOpacity
-            onPress={handleLogin}
+            onPress={() => {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              setRole(role);
+              setUser({ id: "offline", name: "Guest User", email: "guest@example.com", role });
+              router.replace("/(tabs)");
+            }}
             style={styles.guestBtn}
             activeOpacity={0.8}
           >
-            <Text style={[styles.guestBtnText, { color: PINK }]}>GUEST LOG IN</Text>
+            <Text style={[styles.guestBtnText, { color: PINK }]}>OFFLINE BYPASS</Text>
           </TouchableOpacity>
 
           {/* Sign up */}
